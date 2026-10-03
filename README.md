@@ -30,7 +30,7 @@ backend/
     ├── main.rs                 # Точка входа: config, db pool, миграции, graceful shutdown, --print-openapi
     ├── bin/
     │   └── gen_openapi.rs      # Утилита вывода OpenAPI JSON без запуска сервера и без БД
-    ├── core/                   # config, db (pool + auto-migrate), error (AppError -> JSON), openapi, state
+    ├── core/                   # config, db (pool + auto-migrate), error, openapi, rate_limit, state
     ├── api/                    # Роутер, версионирование /api/v1, /health, Swagger UI (/swagger-ui)
     ├── users/                  # Модуль пользователей (чтение списка)
     ├── products/               # Модуль продуктов (чтение списка)
@@ -39,6 +39,18 @@ backend/
     ├── admin/                  # Админ-операции (upsert запаса ваучеров с валидацией)
     └── services/               # Межмодульная оркестрация
 ```
+
+### Ограничение частоты запросов (Rate Limiting)
+
+Реализована двухуровневая защита от перегрузок и брутфорса:
+1. **Application-level Rate Limiter (Rust / Axum)**:
+   - Алгоритм **Token Bucket** с привязкой к IP клиента (`X-Forwarded-For`, `X-Real-IP` или сокет).
+   - Потокобезопасное хранилище с автоматической фоновой очисткой неактивных IP.
+   - При превышении возвращается `429 Too Many Requests`, заголовок `Retry-After: <секунды>` и JSON с кодом `RATE_LIMIT_EXCEEDED`.
+   - Проверки здоровья (`/health`, `/api/v1/health`) и Swagger исключены из лимитов.
+   - Настраивается через переменные окружения (`RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_PER_MINUTE=60`, `RATE_LIMIT_BURST=30`).
+2. **Reverse Proxy Throttling (Nginx)**:
+   - Директива `limit_req_zone $binary_remote_addr zone=api_limit:10m rate=30r/s` на уровне Nginx с `burst=50 nodelay`.
 
 ### Корректность и атомарность активации
 
