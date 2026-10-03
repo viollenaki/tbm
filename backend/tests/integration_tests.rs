@@ -420,3 +420,69 @@ async fn test_race_condition_concurrency() {
 
     assert_eq!(count.0, initial_balance as i64);
 }
+
+#[tokio::test]
+async fn test_rate_limiter_blocks_excessive_requests() {
+    let (_, pool) = match setup_test_app().await {
+        Some(res) => res,
+        None => return,
+    };
+
+    let limiter = Arc::new(backend_lib::core::rate_limit::RateLimiter::new(
+        backend_lib::core::rate_limit::RateLimiterConfig {
+            enabled: true,
+            requests_per_minute: 1,
+            burst_capacity: 2,
+        },
+    ));
+
+    let state = AppState::with_limiter(pool, limiter);
+    let app = create_router(state);
+
+    let client_ip = "198.51.100.42";
+
+    // Request 1: allowed
+    let req1 = Request::builder()
+        .method("GET")
+        .uri("/api/v1/products")
+        .header("x-forwarded-for", client_ip)
+        .body(Body::empty())
+        .unwrap();
+    let res1 = app.clone().oneshot(req1).await.unwrap();
+    assert_eq!(res1.status(), StatusCode::OK);
+
+    // Request 2: allowed
+    let req2 = Request::builder()
+        .method("GET")
+        .uri("/api/v1/products")
+        .header("x-forwarded-for", client_ip)
+        .body(Body::empty())
+        .unwrap();
+    let res2 = app.clone().oneshot(req2).await.unwrap();
+    assert_eq!(res2.status(), StatusCode::OK);
+
+    // Request 3: rate limit exceeded -> 429
+    let req3 = Request::builder()
+        .method("GET")
+        .uri("/api/v1/products")
+        .header("x-forwarded-for", client_ip)
+        .body(Body::empty())
+        .unwrap();
+    let res3 = app.clone().oneshot(req3).await.unwrap();
+    assert_eq!(res3.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(res3.headers().contains_key("retry-after"));
+
+    let body = res3.into_body().collect().await.unwrap().to_bytes();
+    let err: ErrorResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(err.code, "RATE_LIMIT_EXCEEDED");
+
+    // Exempt path: /health is never blocked
+    let health_req = Request::builder()
+        .method("GET")
+        .uri("/health")
+        .header("x-forwarded-for", client_ip)
+        .body(Body::empty())
+        .unwrap();
+    let health_res = app.oneshot(health_req).await.unwrap();
+    assert_eq!(health_res.status(), StatusCode::OK);
+}

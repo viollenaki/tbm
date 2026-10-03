@@ -6,6 +6,9 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub rust_log: String,
+    pub rate_limit_enabled: bool,
+    pub rate_limit_requests_per_minute: u32,
+    pub rate_limit_burst: u32,
 }
 
 impl Config {
@@ -26,11 +29,28 @@ impl Config {
 
         let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info,backend=debug".to_string());
 
+        let rate_limit_enabled = env::var("RATE_LIMIT_ENABLED")
+            .map(|v| v != "false" && v != "0")
+            .unwrap_or(true);
+
+        let rate_limit_requests_per_minute = env::var("RATE_LIMIT_PER_MINUTE")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(60);
+
+        let rate_limit_burst = env::var("RATE_LIMIT_BURST")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(30);
+
         Self {
             database_url,
             host,
             port,
             rust_log,
+            rate_limit_enabled,
+            rate_limit_requests_per_minute,
+            rate_limit_burst,
         }
     }
 }

@@ -1,5 +1,6 @@
 use axum::{
     http::{header, Method},
+    middleware,
     response::Json,
     routing::get,
     Router,
@@ -11,7 +12,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     activations, admin,
-    core::{openapi::ApiDoc, state::AppState},
+    core::{openapi::ApiDoc, rate_limit::rate_limit_middleware, state::AppState},
     products, users, vouchers,
 };
 
@@ -59,5 +60,9 @@ pub fn create_router(state: AppState) -> Router {
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi_spec))
         .nest("/api/v1", api_v1)
         .layer(cors)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            rate_limit_middleware,
+        ))
         .with_state(state)
 }

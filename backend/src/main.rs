@@ -35,7 +35,24 @@ async fn main() -> anyhow::Result<()> {
     let pool = create_pool(&config.database_url).await?;
     run_migrations(&pool).await?;
 
-    let state = AppState::new(pool);
+    let rate_limiter = std::sync::Arc::new(backend_lib::core::rate_limit::RateLimiter::new(
+        backend_lib::core::rate_limit::RateLimiterConfig {
+            enabled: config.rate_limit_enabled,
+            requests_per_minute: config.rate_limit_requests_per_minute,
+            burst_capacity: config.rate_limit_burst,
+        },
+    ));
+
+    let limiter_cleaner = rate_limiter.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            limiter_cleaner.cleanup(std::time::Duration::from_secs(600));
+        }
+    });
+
+    let state = AppState::with_limiter(pool, rate_limiter);
     let app = api::create_router(state);
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
