@@ -1,0 +1,84 @@
+use std::net::SocketAddr;
+use utoipa::OpenApi;
+
+use backend_lib::{
+    api,
+    core::{
+        config::Config,
+        db::{create_pool, run_migrations},
+        openapi::ApiDoc,
+        state::AppState,
+    },
+};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // CLI flag to output OpenAPI schema without database connection
+    if std::env::args().any(|arg| arg == "--print-openapi") {
+        let spec = ApiDoc::openapi().to_pretty_json()?;
+        println!("{spec}");
+        return Ok(());
+    }
+
+    let config = Config::from_env();
+
+    tracing_subscriber::fmt()
+        .with_env_filter(&config.rust_log)
+        .init();
+
+    tracing::info!(
+        "Starting Voucher Service backend on {}:{}",
+        config.host,
+        config.port
+    );
+
+    let pool = create_pool(&config.database_url).await?;
+    run_migrations(&pool).await?;
+
+    let state = AppState::new(pool);
+    let app = api::create_router(state);
+
+    let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+
+    tracing::info!("Swagger UI available at http://{}/swagger-ui", addr);
+    tracing::info!(
+        "OpenAPI spec available at http://{}/api-docs/openapi.json",
+        addr
+    );
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    tracing::info!("Server stopped gracefully.");
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received Ctrl+C, starting shutdown...");
+        },
+        _ = terminate => {
+            tracing::info!("Received SIGTERM, starting shutdown...");
+        },
+    }
+}
