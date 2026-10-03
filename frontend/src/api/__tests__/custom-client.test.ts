@@ -31,7 +31,8 @@ describe("customClient", () => {
       },
     );
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/test", {
+    const baseUrl = import.meta.env.VITE_API_URL || "";
+    expect(mockFetch).toHaveBeenCalledWith(`${baseUrl}/api/test`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -79,7 +80,8 @@ describe("customClient", () => {
       },
     });
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/custom", {
+    const baseUrl = import.meta.env.VITE_API_URL || "";
+    expect(mockFetch).toHaveBeenCalledWith(`${baseUrl}/api/custom`, {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer test-token",
