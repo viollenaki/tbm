@@ -20,3 +20,16 @@ pub async fn run_migrations(pool: &PgPool) -> anyhow::Result<()> {
     tracing::info!("Migrations applied successfully.");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::postgres::PgConnectOptions;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_cloudsql_socket_url_parsing() {
+        let url = "postgres://postgres:dummy_test_password@localhost/tbm_vouchers?host=/cloudsql/project-id:region:instance";
+        let opts = PgConnectOptions::from_str(url);
+        assert!(opts.is_ok(), "Failed to parse: {:?}", opts.err());
+    }
+}
