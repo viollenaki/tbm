@@ -1,4 +1,4 @@
 target/
-.env
-!.env.example
+.env*
+!.env*.example
 *.log

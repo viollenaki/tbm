@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'VITE_API_URL=${_API_URL}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/tbm-frontend:latest'
+      - '.'
+images:
+  - 'gcr.io/$PROJECT_ID/tbm-frontend:latest'
+options:
+  logging: CLOUD_LOGGING_ONLY
