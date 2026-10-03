@@ -1,0 +1,66 @@
+name: tbm
+
+services:
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-tbm_vouchers}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - tbm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-tbm_vouchers}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      default:
+        aliases:
+          - postgres_db
+          - postgres
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres_db:5432/${POSTGRES_DB:-tbm_vouchers}
+      PORT: ${BACKEND_PORT:-8080}
+      HOST: 0.0.0.0
+      RUST_LOG: ${RUST_LOG:-info,backend=debug}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      default:
+        aliases:
+          - backend
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      default:
+        aliases:
+          - frontend
+
+volumes:
+  tbm_postgres_data:
