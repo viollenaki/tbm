@@ -12,7 +12,22 @@ pub struct Config {
 }
 
 impl Config {
+    /// Copies `.env.example` to `.env` in the current working directory when
+    /// `.env` is missing, so a fresh checkout works with `cargo run` out of the box.
+    /// Silently does nothing if the example file is absent (e.g. inside containers).
+    fn bootstrap_env_file() {
+        let env_path = std::path::Path::new(".env");
+        let example_path = std::path::Path::new(".env.example");
+        if !env_path.exists() && example_path.exists() {
+            match std::fs::copy(example_path, env_path) {
+                Ok(_) => eprintln!("Created .env from .env.example"),
+                Err(e) => eprintln!("Failed to create .env from .env.example: {e}"),
+            }
+        }
+    }
+
     pub fn from_env() -> Self {
+        Self::bootstrap_env_file();
         dotenvy::dotenv().ok();
 
         let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
