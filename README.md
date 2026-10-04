@@ -4,6 +4,32 @@
 
 ---
 
+## ⚡ Запуск всего сервиса одной командой (One-Line Run)
+
+Готовые скрипты автоматически скопируют `.env` из шаблонов `.env.example` при их отсутствии, соберут Docker-образы и запустят всю связку (**PostgreSQL + Backend + Frontend**):
+
+```bash
+# Linux / macOS
+./start.sh
+
+# Windows (PowerShell)
+.\start.ps1
+```
+
+> **Или напрямую через Docker Compose** (переменные имеют значения по умолчанию):
+> ```bash
+> docker compose up --build
+> ```
+
+После запуска все компоненты доступны:
+- 🌐 **Frontend (Портал пользователя)**: [http://localhost:3000](http://localhost:3000)
+- ⚙️ **Frontend Admin Panel (Управление ваучерами)**: [http://localhost:3000/admin](http://localhost:3000/admin)
+- 🚀 **Backend API**: [http://localhost:8080](http://localhost:8080)
+- 📖 **Swagger UI**: [http://localhost:8080/swagger-ui](http://localhost:8080/swagger-ui)
+- 📄 **OpenAPI JSON**: [http://localhost:8080/api-docs/openapi.json](http://localhost:8080/api-docs/openapi.json)
+
+---
+
 ## Стек технологий
 
 - **Backend**: Rust 1.85+, [Axum 0.8](https://github.com/tokio-rs/axum), [SQLx 0.8](https://github.com/launchbadge/sqlx), PostgreSQL 16, [utoipa](https://github.com/juhaku/utoipa) (OpenAPI / Swagger UI), [tracing](https://github.com/tokio-rs/tracing), [thiserror](https://github.com/dtolnay/thiserror).
@@ -139,8 +165,14 @@ Frontend запустится на порту `3000`.
 ## Локальный запуск для разработки
 
 ### 1. Переменные окружения
-Скопируйте пример файла конфигурации:
+Файлы `.env` создаются **автоматически** из `.env.example` при первом запуске через скрипты инициализации, `cargo run` или `pnpm dev`.
+Если вы хотите скопировать их вручную:
 ```bash
+# Единый скрипт для корня, backend и frontend:
+./scripts/init-env.sh     # Linux / macOS
+.\scripts\init-env.ps1    # Windows
+
+# Либо вручную:
 cp .env.example .env
 ```
 
